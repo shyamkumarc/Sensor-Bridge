@@ -34,20 +34,42 @@ function fmt(n: number | null | undefined, decimals = 2): string {
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { sensorData, isCollecting, startCollection, stopCollection } = useSensor();
-  const { endpoints, totalSent } = useEndpoints();
+  const { sensorData, isCollecting, startCollection, stopCollection, updateInterval } = useSensor();
+  const { endpoints, totalSent, sendToEndpoints } = useEndpoints();
   const { connectedClients, serverPort, broadcastSensorData } = useStreaming();
 
   const btnScale = useSharedValue(1);
-  const broadcastTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dispatchTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const latestSensorRef = useRef(sensorData);
 
   const activeEndpoints = endpoints.filter((e) => e.enabled).length;
 
+  // Keep latest sensor data in a ref so the interval always dispatches fresh data
   useEffect(() => {
-    if (isCollecting) {
-      broadcastSensorData(sensorData);
+    latestSensorRef.current = sensorData;
+  }, [sensorData]);
+
+  // Start/stop a dispatch loop when collection state changes
+  useEffect(() => {
+    if (dispatchTimer.current) {
+      clearInterval(dispatchTimer.current);
+      dispatchTimer.current = null;
     }
-  }, [sensorData, isCollecting]);
+    if (isCollecting) {
+      // Send immediately on start
+      broadcastSensorData(latestSensorRef.current);
+      sendToEndpoints(latestSensorRef.current);
+
+      // Then send on the configured interval (prevents REST endpoint flooding)
+      dispatchTimer.current = setInterval(() => {
+        broadcastSensorData(latestSensorRef.current);
+        sendToEndpoints(latestSensorRef.current);
+      }, updateInterval);
+    }
+    return () => {
+      if (dispatchTimer.current) clearInterval(dispatchTimer.current);
+    };
+  }, [isCollecting, updateInterval]);
 
   const toggleCollection = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
