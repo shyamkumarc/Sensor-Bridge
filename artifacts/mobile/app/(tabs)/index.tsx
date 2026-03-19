@@ -41,17 +41,13 @@ export default function DashboardScreen() {
   const btnScale = useSharedValue(1);
   const dispatchTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const latestSensorRef = useRef(sensorData);
-  const sendToEndpointsRef = useRef(sendToEndpoints);
-  const broadcastRef = useRef(broadcastSensorData);
 
   const activeEndpoints = endpoints.filter((e) => e.enabled).length;
 
-  // Always keep refs pointing to latest callbacks — avoids stale closures in interval
+  // Always keep the latest sensor data available to the interval without re-triggering it
   useEffect(() => { latestSensorRef.current = sensorData; }, [sensorData]);
-  useEffect(() => { sendToEndpointsRef.current = sendToEndpoints; }, [sendToEndpoints]);
-  useEffect(() => { broadcastRef.current = broadcastSensorData; }, [broadcastSensorData]);
 
-  // Start/stop a dispatch loop when collection state changes
+  // Restart dispatch loop whenever collection state, interval, or endpoints change
   useEffect(() => {
     if (dispatchTimer.current) {
       clearInterval(dispatchTimer.current);
@@ -59,19 +55,22 @@ export default function DashboardScreen() {
     }
     if (isCollecting) {
       // Send immediately on start
-      broadcastRef.current(latestSensorRef.current);
-      sendToEndpointsRef.current(latestSensorRef.current);
+      broadcastSensorData(latestSensorRef.current);
+      sendToEndpoints(latestSensorRef.current);
 
-      // Then send on the configured interval (prevents REST endpoint flooding)
+      // Then repeat on the configured sample interval
       dispatchTimer.current = setInterval(() => {
-        broadcastRef.current(latestSensorRef.current);
-        sendToEndpointsRef.current(latestSensorRef.current);
+        broadcastSensorData(latestSensorRef.current);
+        sendToEndpoints(latestSensorRef.current);
       }, updateInterval);
     }
     return () => {
-      if (dispatchTimer.current) clearInterval(dispatchTimer.current);
+      if (dispatchTimer.current) {
+        clearInterval(dispatchTimer.current);
+        dispatchTimer.current = null;
+      }
     };
-  }, [isCollecting, updateInterval]);
+  }, [isCollecting, updateInterval, sendToEndpoints, broadcastSensorData]);
 
   const toggleCollection = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
