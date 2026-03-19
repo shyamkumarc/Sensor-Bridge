@@ -70,7 +70,9 @@ export default function DashboardScreen() {
         dispatchTimer.current = null;
       }
     };
-  }, [isCollecting, updateInterval, sendToEndpoints, broadcastSensorData]);
+  // sendToEndpoints and broadcastSensorData are stable refs — safe to omit from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCollecting, updateInterval]);
 
   const toggleCollection = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

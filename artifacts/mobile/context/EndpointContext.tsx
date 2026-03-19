@@ -60,6 +60,12 @@ export function EndpointProvider({ children }: { children: React.ReactNode }) {
   const [totalSent, setTotalSent] = useState(0);
   const wsConnections = useRef<Record<string, WebSocket>>({});
 
+  // Always-current ref so sendToEndpoints never needs endpoints in its dep array
+  const endpointsRef = useRef<Endpoint[]>([]);
+  useEffect(() => {
+    endpointsRef.current = endpoints;
+  }, [endpoints]);
+
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((val) => {
       if (val) setEndpoints(JSON.parse(val));
@@ -75,6 +81,28 @@ export function EndpointProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(eps));
   }, []);
 
+  // Structural changes (add/remove/config edit) — persisted to storage
+  const updateEndpoint = useCallback(
+    (id: string, updates: Partial<Endpoint>) => {
+      setEndpoints((prev) => {
+        const next = prev.map((ep) => (ep.id === id ? { ...ep, ...updates } : ep));
+        saveEndpoints(next);
+        return next;
+      });
+    },
+    [saveEndpoints]
+  );
+
+  // Transient status updates during sends — NOT saved to storage, avoids re-render cascade
+  const setEndpointStatus = useCallback(
+    (id: string, updates: Partial<Endpoint>) => {
+      setEndpoints((prev) =>
+        prev.map((ep) => (ep.id === id ? { ...ep, ...updates } : ep))
+      );
+    },
+    []
+  );
+
   const addEndpoint = useCallback(
     (ep: Omit<Endpoint, "id">) => {
       const newEp: Endpoint = {
@@ -85,17 +113,6 @@ export function EndpointProvider({ children }: { children: React.ReactNode }) {
       };
       setEndpoints((prev) => {
         const next = [...prev, newEp];
-        saveEndpoints(next);
-        return next;
-      });
-    },
-    [saveEndpoints]
-  );
-
-  const updateEndpoint = useCallback(
-    (id: string, updates: Partial<Endpoint>) => {
-      setEndpoints((prev) => {
-        const next = prev.map((ep) => (ep.id === id ? { ...ep, ...updates } : ep));
         saveEndpoints(next);
         return next;
       });
@@ -122,24 +139,24 @@ export function EndpointProvider({ children }: { children: React.ReactNode }) {
       if (existing && existing.readyState === WebSocket.OPEN) return existing;
       try {
         const ws = new WebSocket(ep.url);
-        ws.onopen = () => updateEndpoint(ep.id, { lastStatus: "connected" });
-        ws.onerror = () => updateEndpoint(ep.id, { lastStatus: "error", lastError: "Connection failed" });
-        ws.onclose = () => updateEndpoint(ep.id, { lastStatus: "disconnected" });
+        ws.onopen = () => setEndpointStatus(ep.id, { lastStatus: "connected" });
+        ws.onerror = () => setEndpointStatus(ep.id, { lastStatus: "error", lastError: "Connection failed" });
+        ws.onclose = () => setEndpointStatus(ep.id, { lastStatus: "disconnected" });
         wsConnections.current[ep.id] = ws;
         return ws;
       } catch (e: any) {
-        updateEndpoint(ep.id, { lastStatus: "error", lastError: e.message });
+        setEndpointStatus(ep.id, { lastStatus: "error", lastError: e.message });
         return null;
       }
     },
-    [updateEndpoint]
+    [setEndpointStatus]
   );
 
   const sendToRestEndpoint = useCallback(async (ep: Endpoint, payload: string) => {
     const method = ep.method ?? "POST";
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      ...ep.headers,
+      ...(ep.headers ?? {}),
     };
     if (ep.username && ep.password) {
       headers["Authorization"] = "Basic " + btoa(`${ep.username}:${ep.password}`);
@@ -148,9 +165,10 @@ export function EndpointProvider({ children }: { children: React.ReactNode }) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
   }, []);
 
+  // Reads endpoints from ref — stable function reference, never causes dispatch loop
   const sendToEndpoints = useCallback(
     async (data: SensorData) => {
-      const activeEps = endpoints.filter((ep) => ep.enabled);
+      const activeEps = endpointsRef.current.filter((ep) => ep.enabled);
       if (activeEps.length === 0) return;
 
       await Promise.allSettled(
@@ -162,20 +180,18 @@ export function EndpointProvider({ children }: { children: React.ReactNode }) {
               if (ws) {
                 if (ws.readyState === WebSocket.OPEN) {
                   ws.send(payload);
-                  updateEndpoint(ep.id, {
+                  setEndpointStatus(ep.id, {
                     lastStatus: "connected",
                     messageCount: (ep.messageCount ?? 0) + 1,
                   });
                 } else if (ws.readyState === WebSocket.CONNECTING) {
-                  ws.addEventListener("open", () => {
-                    ws.send(payload);
-                  }, { once: true });
+                  ws.addEventListener("open", () => { ws.send(payload); }, { once: true });
                 }
               }
             } else if (ep.type === "rest") {
-              updateEndpoint(ep.id, { lastStatus: "sending" });
+              setEndpointStatus(ep.id, { lastStatus: "sending" });
               await sendToRestEndpoint(ep, payload);
-              updateEndpoint(ep.id, {
+              setEndpointStatus(ep.id, {
                 lastStatus: "connected",
                 messageCount: (ep.messageCount ?? 0) + 1,
               });
@@ -188,27 +204,28 @@ export function EndpointProvider({ children }: { children: React.ReactNode }) {
               const ws = getOrCreateWS({ ...ep, url: mqttWsUrl });
               if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(payload);
-                updateEndpoint(ep.id, {
+                setEndpointStatus(ep.id, {
                   lastStatus: "connected",
                   messageCount: (ep.messageCount ?? 0) + 1,
                 });
               }
             } else if (ep.type === "tcp" || ep.type === "udp") {
-              updateEndpoint(ep.id, { lastStatus: "sending" });
+              setEndpointStatus(ep.id, { lastStatus: "sending" });
               await sendToRestEndpoint(ep, payload);
-              updateEndpoint(ep.id, {
+              setEndpointStatus(ep.id, {
                 lastStatus: "connected",
                 messageCount: (ep.messageCount ?? 0) + 1,
               });
             }
           } catch (e: any) {
-            updateEndpoint(ep.id, { lastStatus: "error", lastError: e.message });
+            setEndpointStatus(ep.id, { lastStatus: "error", lastError: (e as Error).message });
           }
         })
       );
       setTotalSent((prev) => prev + 1);
     },
-    [endpoints, getOrCreateWS, sendToRestEndpoint, updateEndpoint]
+    [getOrCreateWS, sendToRestEndpoint, setEndpointStatus]
+    // No `endpoints` dependency — reads from endpointsRef instead, breaking the cascade loop
   );
 
   const getStatus = useCallback(
