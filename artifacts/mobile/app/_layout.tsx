@@ -13,6 +13,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { DataDispatcher } from "@/components/DataDispatcher";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { EndpointProvider } from "@/context/EndpointContext";
 import { SensorProvider } from "@/context/SensorContext";
@@ -62,6 +63,7 @@ export default function RootLayout() {
               <SensorProvider>
                 <EndpointProvider>
                   <StreamingProvider>
+                    <DataDispatcher />
                     <RootLayoutNav />
                   </StreamingProvider>
                 </EndpointProvider>

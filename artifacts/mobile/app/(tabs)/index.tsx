@@ -1,7 +1,7 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import {
   Platform,
   Pressable,
@@ -34,45 +34,13 @@ function fmt(n: number | null | undefined, decimals = 2): string {
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { sensorData, isCollecting, startCollection, stopCollection, updateInterval } = useSensor();
-  const { endpoints, totalSent, sendToEndpoints } = useEndpoints();
-  const { connectedClients, serverPort, broadcastSensorData } = useStreaming();
+  const { sensorData, isCollecting, startCollection, stopCollection } = useSensor();
+  const { endpoints, totalSent } = useEndpoints();
+  const { connectedClients, serverPort } = useStreaming();
 
   const btnScale = useSharedValue(1);
-  const dispatchTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const latestSensorRef = useRef(sensorData);
 
   const activeEndpoints = endpoints.filter((e) => e.enabled).length;
-
-  // Always keep the latest sensor data available to the interval without re-triggering it
-  useEffect(() => { latestSensorRef.current = sensorData; }, [sensorData]);
-
-  // Restart dispatch loop whenever collection state, interval, or endpoints change
-  useEffect(() => {
-    if (dispatchTimer.current) {
-      clearInterval(dispatchTimer.current);
-      dispatchTimer.current = null;
-    }
-    if (isCollecting) {
-      // Send immediately on start
-      broadcastSensorData(latestSensorRef.current);
-      sendToEndpoints(latestSensorRef.current);
-
-      // Then repeat on the configured sample interval
-      dispatchTimer.current = setInterval(() => {
-        broadcastSensorData(latestSensorRef.current);
-        sendToEndpoints(latestSensorRef.current);
-      }, updateInterval);
-    }
-    return () => {
-      if (dispatchTimer.current) {
-        clearInterval(dispatchTimer.current);
-        dispatchTimer.current = null;
-      }
-    };
-  // sendToEndpoints and broadcastSensorData are stable refs — safe to omit from deps
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCollecting, updateInterval]);
 
   const toggleCollection = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
