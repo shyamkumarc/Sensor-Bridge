@@ -1,0 +1,75 @@
+{
+  "expo": {
+    "name": "IoT Sensor Hub",
+    "slug": "mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "mobile",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0C0F"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "IoT Sensor Hub uses your location as a sensor data source for streaming.",
+        "NSCameraUsageDescription": "IoT Sensor Hub uses the camera for on-demand image and video capture.",
+        "NSMicrophoneUsageDescription": "IoT Sensor Hub uses the microphone for video recording.",
+        "NSMotionUsageDescription": "IoT Sensor Hub reads motion sensors (accelerometer, gyroscope) for IoT data streaming."
+      }
+    },
+    "android": {
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "RECORD_AUDIO",
+        "ACTIVITY_RECOGNITION",
+        "BODY_SENSORS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://replit.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow IoT Sensor Hub to access your camera for on-demand capture.",
+          "microphonePermission": "Allow IoT Sensor Hub to access your microphone for video capture.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow IoT Sensor Hub to use your location as a sensor data source."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow IoT Sensor Hub to save captured images.",
+          "savePhotosPermission": "Allow IoT Sensor Hub to save photos.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
