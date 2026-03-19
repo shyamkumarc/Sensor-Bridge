@@ -41,13 +41,15 @@ export default function DashboardScreen() {
   const btnScale = useSharedValue(1);
   const dispatchTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const latestSensorRef = useRef(sensorData);
+  const sendToEndpointsRef = useRef(sendToEndpoints);
+  const broadcastRef = useRef(broadcastSensorData);
 
   const activeEndpoints = endpoints.filter((e) => e.enabled).length;
 
-  // Keep latest sensor data in a ref so the interval always dispatches fresh data
-  useEffect(() => {
-    latestSensorRef.current = sensorData;
-  }, [sensorData]);
+  // Always keep refs pointing to latest callbacks — avoids stale closures in interval
+  useEffect(() => { latestSensorRef.current = sensorData; }, [sensorData]);
+  useEffect(() => { sendToEndpointsRef.current = sendToEndpoints; }, [sendToEndpoints]);
+  useEffect(() => { broadcastRef.current = broadcastSensorData; }, [broadcastSensorData]);
 
   // Start/stop a dispatch loop when collection state changes
   useEffect(() => {
@@ -57,13 +59,13 @@ export default function DashboardScreen() {
     }
     if (isCollecting) {
       // Send immediately on start
-      broadcastSensorData(latestSensorRef.current);
-      sendToEndpoints(latestSensorRef.current);
+      broadcastRef.current(latestSensorRef.current);
+      sendToEndpointsRef.current(latestSensorRef.current);
 
       // Then send on the configured interval (prevents REST endpoint flooding)
       dispatchTimer.current = setInterval(() => {
-        broadcastSensorData(latestSensorRef.current);
-        sendToEndpoints(latestSensorRef.current);
+        broadcastRef.current(latestSensorRef.current);
+        sendToEndpointsRef.current(latestSensorRef.current);
       }, updateInterval);
     }
     return () => {
