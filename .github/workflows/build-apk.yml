@@ -28,14 +28,11 @@ jobs:
       - name: Accept licenses
         run: yes | sdkmanager --licenses
 
-      - name: Give permission to gradlew
-        run: chmod +x gradlew
-
       - name: Clean project
-        run: ./gradlew clean
+        run: gradle clean
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
